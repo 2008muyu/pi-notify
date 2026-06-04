@@ -37,6 +37,8 @@ interface Config {
   loop?: boolean;
   /** 是否发 OSC 9 系统通知，默认 true */
   osNotify?: boolean;
+  /** 是否启用 Bark 推送，默认 false */
+  barkEnabled?: boolean;
 }
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-notify.json");
@@ -54,6 +56,7 @@ function loadConfig(): Config {
     bell: process.env.PI_NOTIFY_BELL !== "false",
     loop: process.env.PI_NOTIFY_LOOP === "true",
     osNotify: process.env.PI_NOTIFY_OS_NOTIFY !== "false",
+    barkEnabled: process.env.PI_NOTIFY_BARK_ENABLED === "true",
   };
 }
 
@@ -140,7 +143,7 @@ export default function (pi: ExtensionAPI) {
           { label: `${cfg.bell !== false ? "✅" : "⬜"} Terminal bell`, value: "bell" },
           { label: `${cfg.loop ? "✅" : "⬜"} Loop sound`, value: "loop" },
           { label: `${cfg.osNotify !== false ? "✅" : "⬜"} OS notification`, value: "osNotify" },
-          { label: `${cfg.barkKey ? "✅" : "⬜"} Bark push: ${cfg.barkKey || "(not set)"}`, value: "barkKey" },
+          { label: (cfg.barkKey && cfg.barkEnabled ? "✅" : "⬜") + " Bark push" + (cfg.barkKey ? " (" + cfg.barkKey.slice(0, 8) + "...)" : ""), value: "barkKey" },
           { label: `♪ Sound file: ${cfg.soundFile || "(system default)"}`, value: "soundFile" },
         ];
       }
@@ -216,11 +219,31 @@ export default function (pi: ExtensionAPI) {
         const action = items[result].value;
 
         if (action === "barkKey") {
-          const newKey = await ctx.ui.input("Bark device key:", cfg.barkKey || "");
-          if (newKey !== undefined) {
-            cfg.barkKey = newKey;
-            saveConfig(cfg);
-            ctx.ui.notify("Bark key saved", "info");
+          if (cfg.barkKey) {
+            // 有 key → 打开编辑，预填当前 key；留空提交 = 切换开关
+            const newKey = await ctx.ui.input("Bark device key (leave empty to toggle on/off):", cfg.barkKey);
+            if (newKey === undefined) {
+              // Esc → 放弃
+            } else if (newKey.trim() && newKey.trim() !== cfg.barkKey) {
+              cfg.barkKey = newKey.trim();
+              cfg.barkEnabled = true;
+              saveConfig(cfg);
+              ctx.ui.notify("Bark key updated", "info");
+            } else {
+              // 留空或没改 → 切换开关
+              cfg.barkEnabled = !cfg.barkEnabled;
+              saveConfig(cfg);
+              ctx.ui.notify(cfg.barkEnabled ? "Bark push on" : "Bark push off", "info");
+            }
+          } else {
+            // 无 key → 输入并启用
+            const newKey = await ctx.ui.input("Bark device key:", "");
+            if (newKey !== undefined && newKey.trim()) {
+              cfg.barkKey = newKey.trim();
+              cfg.barkEnabled = true;
+              saveConfig(cfg);
+              ctx.ui.notify("Bark key saved", "info");
+            }
           }
         } else if (action === "soundFile") {
           const path = await soundPicker(ctx, pi);
@@ -384,27 +407,55 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── agent_end → notify complete ────────────────────────
-  pi.on("agent_end", async (_event, ctx) => {
+  pi.on("agent_end", async (event, ctx) => {
     const cfg = loadConfig();
+
+    // 从事件消息提取任务描述（取第一行，不超过 30 字）
+    let taskDesc = projectName;
+    if (event.messages?.length) {
+      for (let i = event.messages.length - 1; i >= 0; i--) {
+        const m = event.messages[i] as any;
+        if (m.role === "user" && m.content) {
+          const raw = typeof m.content === "string" ? m.content.trim() : "";
+          const firstLine = raw.split(/\n/)[0] || "";
+          taskDesc = firstLine.length > 30 ? firstLine.slice(0, 27) + "..." : firstLine;
+          break;
+        }
+      }
+    }
 
     if (ctx.hasUI) {
       ctx.ui.setStatus("notify", "✅ complete");
     }
     setTabTitle("✅");
 
-    fireNotifications(pi, cfg, projectName, "✅", "complete");
+    fireNotifications(pi, cfg, taskDesc, "✅", "complete");
   });
 
   // ── agent_error → notify error ─────────────────────────
-  pi.on("agent_error", async (_event, ctx) => {
+  pi.on("agent_error", async (event, ctx) => {
     const cfg = loadConfig();
+
+    // 同上提取任务描述
+    let taskDesc = projectName;
+    if (event.messages?.length) {
+      for (let i = event.messages.length - 1; i >= 0; i--) {
+        const m = event.messages[i] as any;
+        if (m.role === "user" && m.content) {
+          const raw = typeof m.content === "string" ? m.content.trim() : "";
+          const firstLine = raw.split(/\n/)[0] || "";
+          taskDesc = firstLine.length > 30 ? firstLine.slice(0, 27) + "..." : firstLine;
+          break;
+        }
+      }
+    }
 
     if (ctx.hasUI) {
       ctx.ui.setStatus("notify", "❌ error");
     }
     setTabTitle("❌");
 
-    fireNotifications(pi, cfg, projectName, "❌", "error");
+    fireNotifications(pi, cfg, taskDesc, "❌", "error");
   });
 
   // ── cleanup ─────────────────────────────────────────────
@@ -439,7 +490,7 @@ function fireNotifications(
   }
 
   // 4. Bark push
-  if (cfg.barkKey) {
+  if (cfg.barkKey && cfg.barkEnabled) {
     sendBark(cfg.barkKey, cfg.barkServer, project, emoji, label).catch(() => {});
   }
 }
