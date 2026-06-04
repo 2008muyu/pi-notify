@@ -1,9 +1,17 @@
 {
   "name": "pi-notify",
   "version": "1.0.0",
-  "description": "Notification extension for pi: tab status, sound, terminal bell, Bark push to phone",
+  "description": "Notification extension for pi: tab status, sound, terminal bell, Bark push to iPhone",
+  "keywords": ["pi-package", "pi-extension", "notification"],
+  "author": "2008muyu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2008muyu/pi-notify.git"
+  },
   "pi": {
-    "extensions": ["./extensions/pi-notify.ts"]
+    "extensions": ["./extensions/pi-notify.ts"],
+    "image": "https://github.com/2008muyu/pi-notify/raw/main/docs/screenshot.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0"
