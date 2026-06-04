@@ -1,0 +1,11 @@
+{
+  "name": "pi-notify",
+  "version": "1.0.0",
+  "description": "Notification extension for pi: tab status, sound, terminal bell, Bark push to phone",
+  "pi": {
+    "extensions": ["./extensions/pi-notify.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.1.0"
+  }
+}
