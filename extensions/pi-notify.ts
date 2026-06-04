@@ -122,9 +122,9 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", (_event, ctx) => {
     if (ctx.hasUI && !_listenerRegistered) {
       _listenerRegistered = true;
-      ctx.ui.onTerminalInput(() => {
+      ctx.ui.onTerminalInput((_data: string) => {
         if (_loopingAbort) stopLoopingSound();
-        return; // 不消费按键，透传
+        return undefined; // 不消费按键，透传
       });
     }
   });
@@ -433,6 +433,11 @@ export default function (pi: ExtensionAPI) {
   });
 
   // ── agent_error → notify error ─────────────────────────
+  //
+  // NOTE: pi coding-agent 没有 "agent_error" 事件。
+  // 这个 handler 永远不会触发，保留代码仅供参考。
+  // 如需实现错误通知，请改为监听 "tool_execution_end" 并检查 result.isError。
+  /*
   pi.on("agent_error", async (event, ctx) => {
     const cfg = loadConfig();
 
@@ -457,6 +462,7 @@ export default function (pi: ExtensionAPI) {
 
     fireNotifications(pi, cfg, taskDesc, "❌", "error");
   });
+  */
 
   // ── cleanup ─────────────────────────────────────────────
   pi.on("session_shutdown", () => {
