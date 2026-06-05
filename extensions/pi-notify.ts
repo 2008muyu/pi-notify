@@ -151,7 +151,7 @@ export default function (pi: ExtensionAPI) {
       let lastIndex = 0;
 
       while (true) {
-        const result = await ctx.ui.custom<number | undefined>((tui, theme, _kb, done) => {
+        const result = await ctx.ui.custom((tui: any, theme: any, _kb: any, done: (result: number | undefined) => void) => {
           let currentIndex = lastIndex;
 
           const container = new Container();
@@ -178,9 +178,9 @@ export default function (pi: ExtensionAPI) {
           render();
 
           return {
-            render: (w) => container.render(w),
+            render: (w: any) => container.render(w),
             invalidate: () => container.invalidate(),
-            handleInput: (data) => {
+            handleInput: (data: string) => {
               const items = buildItems();
 
               if (data === "\x1b[A" || data === "\x1bOA" || data === "\x1b[[A") {
@@ -280,11 +280,11 @@ export default function (pi: ExtensionAPI) {
   // ── 分页声音选择器 ────────────────────────────────────
   async function soundPicker(ctx: any, pi: ExtensionAPI): Promise<string | undefined> {
     const userDir = join(homedir(), ".pi", "agent", "sounds");
-    const sysDirs: string[] = {
+    const sysDirs: string[] = ({
       win32:  ["C:/Windows/Media"],
       darwin: ["/System/Library/Sounds"],
       linux:  ["/usr/share/sounds/freedesktop/stereo", "/usr/share/sounds"],
-    }[process.platform] || [];
+    } as Record<string, string[] | undefined>)[process.platform] || [];
 
     const userFiles = scanSounds(userDir);
     const sysFiles = sysDirs.flatMap(d => scanSounds(d));
@@ -304,7 +304,7 @@ export default function (pi: ExtensionAPI) {
     let selectedIndex = 0;
     let playing = false;
 
-    return ctx.ui.custom<string | undefined>((tui, theme, _keybindings, done) => {
+    return ctx.ui.custom((tui: any, theme: any, _keybindings: any, done: (result: string | undefined) => void) => {
       const container = new Container();
 
       // Top border
@@ -360,9 +360,9 @@ export default function (pi: ExtensionAPI) {
       renderList();
 
       return {
-        render: (w) => container.render(w),
+        render: (w: any) => container.render(w),
         invalidate: () => container.invalidate(),
-        handleInput: (data) => {
+        handleInput: (data: string) => {
           // 全部只做原始字符串比对，完全绕过键绑定系统
           if (data === "\x1b[A" || data === "\x1bOA" || data === "\x1b[[A") {
             selectedIndex = selectedIndex === 0 ? items.length - 1 : selectedIndex - 1;
