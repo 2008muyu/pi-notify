@@ -486,7 +486,9 @@ function fireNotifications(
 ) {
   // 1. OSC 9 notification (iTerm2, Ghostty, WezTerm, Windows Terminal)
   if (cfg.osNotify !== false && process.stdout.isTTY) {
-    process.stdout.write(`\x1b]9;pi ${emoji} ${project} — ${label}\x07`);
+    // taskDesc 来自用户输入，剥离控制字符，避免破坏 OSC 序列解析
+    const text = `pi ${emoji} ${project} — ${label}`.replace(/[\x00-\x1f\x7f]/g, " ");
+    process.stdout.write(`\x1b]9;${text}\x07`);
   }
 
   // 2. System sound (必须先于 bell，避免先响铃再播自定义声音）
@@ -519,6 +521,22 @@ function stopLoopingSound(): void {
   }
 }
 
+/** 循环播放：反复拉起播放器直到 stopLoopingSound()（任意键 / 新任务 / 退出） */
+function startLoop(pi: ExtensionAPI, cmd: string, file: string): void {
+  stopLoopingSound();
+  const ac = new AbortController();
+  _loopingAbort = ac;
+  void (async () => {
+    while (!ac.signal.aborted) {
+      try {
+        const r = await pi.exec(cmd, [file], { signal: ac.signal, timeout: 30000 });
+        if (r.killed || r.code !== 0) break; // 播放器异常/被杀 → 停止循环
+      } catch { break; }
+    }
+    if (_loopingAbort === ac) _loopingAbort = null;
+  })();
+}
+
 /** 播放指定音频文件 */
 async function playSoundFile(pi: ExtensionAPI, file: string, loop?: boolean): Promise<void> {
   const p = process.platform;
@@ -536,11 +554,11 @@ async function playSoundFile(pi: ExtensionAPI, file: string, loop?: boolean): Pr
       }
       await pi.exec("powershell", ["-NoProfile", "-c",
         `(New-Object System.Media.SoundPlayer '${file}').PlaySync();`], { timeout: 1500 });
-    } else if (p === "darwin") {
-      await pi.exec("afplay", [file], { timeout: loop ? 10000 : 3000 });
     } else {
-      try { await pi.exec("paplay", [file], { timeout: loop ? 10000 : 3000 }); }
-      catch { await pi.exec("aplay", [file], { timeout: loop ? 10000 : 3000 }); }
+      const cmd = p === "darwin" ? "afplay"
+        : existsSync("/usr/bin/paplay") ? "paplay" : "aplay";
+      if (loop) { startLoop(pi, cmd, file); return; }
+      await pi.exec(cmd, [file], { timeout: 3000 });
     }
   } catch {
     process.stdout.write("\x07");
@@ -561,7 +579,7 @@ async function playSound(pi: ExtensionAPI, cfg: Config, isError: boolean): Promi
       return;
     }
 
-    // 系统默认提示音
+    // 系统默认提示音（loop 模式下同样循环）
     if (p === "win32") {
       const snd = isError
         ? "[System.Media.SystemSounds]::Hand.Play()"
@@ -571,12 +589,8 @@ async function playSound(pi: ExtensionAPI, cfg: Config, isError: boolean): Promi
       const candidates = SOUNDS[p]?.[isError ? "err" : "ok"] ?? [];
       for (const file of candidates) {
         if (existsSync(file)) {
-          if (p === "darwin") {
-            await pi.exec("afplay", [file], { timeout: 3000 });
-          } else {
-            try { await pi.exec("paplay", [file], { timeout: 3000 }); }
-            catch { await pi.exec("aplay", [file], { timeout: 3000 }); }
-          }
+          if (cfg.loop) playSoundFile(pi, file, true).catch(() => {});
+          else await playSoundFile(pi, file, false);
           return;
         }
       }
