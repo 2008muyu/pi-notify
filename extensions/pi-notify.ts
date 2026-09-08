@@ -13,7 +13,7 @@
  *   环境变量：BARK_KEY, BARK_SERVER, PI_NOTIFY_SOUND=false, PI_NOTIFY_BELL=false
  */
 import { DynamicBorder, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Container, Text } from "@earendil-works/pi-tui";
+import { Container, Text, matchesKey, Key, isKeyRelease } from "@earendil-works/pi-tui";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { homedir } from "node:os";
@@ -181,19 +181,22 @@ export default function (pi: ExtensionAPI) {
             render: (w: any) => container.render(w),
             invalidate: () => container.invalidate(),
             handleInput: (data: string) => {
+              // kitty keyboard protocol (Ghostty/iTerm2) sends CSI-u sequences;
+              // raw comparison misses them. matchesKey() normalizes both forms.
+              if (isKeyRelease(data)) return;
               const items = buildItems();
 
-              if (data === "\x1b[A" || data === "\x1bOA" || data === "\x1b[[A") {
+              if (matchesKey(data, Key.up)) {
                 currentIndex = currentIndex === 0 ? items.length - 1 : currentIndex - 1;
                 render();
                 tui.requestRender();
               }
-              else if (data === "\x1b[B" || data === "\x1bOB" || data === "\x1b[[B") {
+              else if (matchesKey(data, Key.down)) {
                 currentIndex = currentIndex === items.length - 1 ? 0 : currentIndex + 1;
                 render();
                 tui.requestRender();
               }
-              else if (data === "\r" || data === "\n" || data === "\x1bOM") {
+              else if (matchesKey(data, Key.enter)) {
                 const action = items[currentIndex].value;
                 // 开关项：面板内直接处理，光标不动
                 if (action === "sound") { cfg.sound = !cfg.sound; saveConfig(cfg); render(); tui.requestRender(); }
@@ -206,7 +209,7 @@ export default function (pi: ExtensionAPI) {
                   done(currentIndex);
                 }
               }
-              else if (data === "\x1b") {
+              else if (matchesKey(data, Key.escape)) {
                 done(undefined);
               }
             },
@@ -363,27 +366,28 @@ export default function (pi: ExtensionAPI) {
         render: (w: any) => container.render(w),
         invalidate: () => container.invalidate(),
         handleInput: (data: string) => {
-          // 全部只做原始字符串比对，完全绕过键绑定系统
-          if (data === "\x1b[A" || data === "\x1bOA" || data === "\x1b[[A") {
+          if (isKeyRelease(data)) return;
+          // matchesKey() handles both legacy and kitty-protocol sequences
+          if (matchesKey(data, Key.up)) {
             selectedIndex = selectedIndex === 0 ? items.length - 1 : selectedIndex - 1;
             renderList();
             previewCurrent();
             tui.requestRender();
           }
-          else if (data === "\x1b[B" || data === "\x1bOB" || data === "\x1b[[B") {
+          else if (matchesKey(data, Key.down)) {
             selectedIndex = selectedIndex === items.length - 1 ? 0 : selectedIndex + 1;
             renderList();
             previewCurrent();
             tui.requestRender();
           }
-          else if (data === "\r" || data === "\n" || data === "\x1bOM") {
+          else if (matchesKey(data, Key.enter)) {
             const path = items[selectedIndex].path;
             done(path === "__reset__" ? "__reset__" : path);
           }
-          else if (data === "\x1b") {
+          else if (matchesKey(data, Key.escape)) {
             done(undefined);
           }
-          else if (data === " ") {
+          else if (matchesKey(data, Key.space)) {
             const item = items[selectedIndex];
             if (item.path !== "__reset__" && !playing) {
               playing = true;
