@@ -151,7 +151,7 @@ export default function (pi: ExtensionAPI) {
       let lastIndex = 0;
 
       while (true) {
-        const result = await ctx.ui.custom((tui: any, theme: any, _kb: any, done: (result: number | undefined) => void) => {
+        const result = await ctx.ui.custom<number | undefined>((tui, theme, _kb, done) => {
           let currentIndex = lastIndex;
 
           const container = new Container();
@@ -178,9 +178,9 @@ export default function (pi: ExtensionAPI) {
           render();
 
           return {
-            render: (w: any) => container.render(w),
+            render: (w) => container.render(w),
             invalidate: () => container.invalidate(),
-            handleInput: (data: string) => {
+            handleInput: (data) => {
               // kitty keyboard protocol (Ghostty/iTerm2) sends CSI-u sequences;
               // raw comparison misses them. matchesKey() normalizes both forms.
               if (isKeyRelease(data)) return;
@@ -283,11 +283,11 @@ export default function (pi: ExtensionAPI) {
   // ── 分页声音选择器 ────────────────────────────────────
   async function soundPicker(ctx: any, pi: ExtensionAPI): Promise<string | undefined> {
     const userDir = join(homedir(), ".pi", "agent", "sounds");
-    const sysDirs: string[] = ({
+    const sysDirs: string[] = {
       win32:  ["C:/Windows/Media"],
       darwin: ["/System/Library/Sounds"],
       linux:  ["/usr/share/sounds/freedesktop/stereo", "/usr/share/sounds"],
-    } as Record<string, string[] | undefined>)[process.platform] || [];
+    }[process.platform] || [];
 
     const userFiles = scanSounds(userDir);
     const sysFiles = sysDirs.flatMap(d => scanSounds(d));
@@ -307,7 +307,7 @@ export default function (pi: ExtensionAPI) {
     let selectedIndex = 0;
     let playing = false;
 
-    return ctx.ui.custom((tui: any, theme: any, _keybindings: any, done: (result: string | undefined) => void) => {
+    return ctx.ui.custom<string | undefined>((tui, theme, _keybindings, done) => {
       const container = new Container();
 
       // Top border
@@ -363,9 +363,9 @@ export default function (pi: ExtensionAPI) {
       renderList();
 
       return {
-        render: (w: any) => container.render(w),
+        render: (w) => container.render(w),
         invalidate: () => container.invalidate(),
-        handleInput: (data: string) => {
+        handleInput: (data) => {
           if (isKeyRelease(data)) return;
           // matchesKey() handles both legacy and kitty-protocol sequences
           if (matchesKey(data, Key.up)) {

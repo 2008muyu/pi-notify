@@ -1,6 +1,6 @@
 {
   "name": "@2008muyu/pi-notify",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Notification extension for pi: tab status, sound, terminal bell, Bark push to iPhone",
   "keywords": [
     "pi-package",
