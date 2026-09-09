@@ -24,5 +24,9 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.1.0"
-  }
+  },
+  "files": [
+    "extensions/",
+    "README.md"
+  ]
 }
